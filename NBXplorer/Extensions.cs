@@ -151,9 +151,10 @@ namespace NBXplorer
 
 			services.TryAddSingleton<CookieRepository>();
 			services.TryAddSingleton<RepositoryProvider>();
+			services.AddSingleton<IHostedService, RepositoryProvider>(o => o.GetRequiredService<RepositoryProvider>());
 			services.TryAddSingleton<EventAggregator>();
-			services.TryAddSingleton<AddressPoolServiceAccessor>();
-			services.AddSingleton<IHostedService, AddressPoolService>();
+			services.TryAddSingleton<AddressPoolService>();
+			services.AddSingleton<IHostedService, AddressPoolService>(o => o.GetRequiredService<AddressPoolService>());
 			services.TryAddSingleton<BitcoinDWaiters>();
 			services.TryAddSingleton<RebroadcasterHostedService>();
 			services.AddSingleton<IHostedService, ScanUTXOSetService>();
@@ -161,6 +162,9 @@ namespace NBXplorer
 			services.AddSingleton<IHostedService, BitcoinDWaiters>(o => o.GetRequiredService<BitcoinDWaiters>());
 			services.AddSingleton<IHostedService, RebroadcasterHostedService>(o => o.GetRequiredService<RebroadcasterHostedService>());
 			services.AddSingleton<IHostedService, BrokerHostedService>();
+
+			services.AddSingleton<Analytics.FingerprintHostedService>();
+			services.AddSingleton<IHostedService, Analytics.FingerprintHostedService>(o => o.GetRequiredService<Analytics.FingerprintHostedService>());
 
 			services.AddSingleton<ExplorerConfiguration>(o => o.GetRequiredService<IOptions<ExplorerConfiguration>>().Value);
 

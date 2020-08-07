@@ -24,8 +24,9 @@ It has a bunch of feature:
 * Flexible address generation schemes (multisig, segwit, legacy etc...)
 * Pruning for big wallets (Removal of tracked transaction which do not impact the resulting UTXO set)
 
-It currently the following altcoins:
+It currently supports the following altcoins:
 
+* Argoneum
 * BCash (also known as Bitcoin Cash)
 * BGold (also known as Bitcoin Gold)
 * Bitcoin
@@ -39,8 +40,11 @@ It currently the following altcoins:
 * Groestlcoin
 * Litecoin
 * Monacoin
+* MonetaryUnit
 * Monoeci
 * Polis
+* Qtum
+* Terracoin
 * Ufo
 * Viacoin
 

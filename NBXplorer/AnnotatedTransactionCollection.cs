@@ -32,6 +32,9 @@ namespace NBXplorer
 		{
 			get;
 		}
+		public uint256 ReplacedBy { get; set; }
+		public bool Replaceable { get; set; }
+		public uint256 Replacing { get; set; }
 
 		public override string ToString()
 		{
@@ -95,52 +98,76 @@ namespace NBXplorer
 				}
 			}
 
-		removeConflicts:
+			var unconfs = _TxById.Where(r => r.Value.Height is null)
+							.ToDictionary(kv => kv.Key, kv => kv.Value);
+			var replaced = new Dictionary<uint256, AnnotatedTransaction>();
+			removeConflicts:
 			HashSet<uint256> toRemove = new HashSet<uint256>();
-			foreach (var annotatedTransaction in _TxById.Values.Where(r => r.Height is null))
+			foreach (var annotatedTransaction in unconfs.Values)
 			{
 				foreach (var spent in annotatedTransaction.Record.SpentOutpoints)
 				{
+					// All children of a replaced transaction should be replaced
+					if (replaced.TryGetValue(spent.Hash, out var parent) && parent.ReplacedBy is uint256)
+					{
+						annotatedTransaction.Replaceable = false;
+						annotatedTransaction.ReplacedBy = parent.ReplacedBy;
+						replaced.Add(annotatedTransaction.Record.TransactionHash, annotatedTransaction);
+						toRemove.Add(annotatedTransaction.Record.TransactionHash);
+						goto nextTransaction;
+					}
+
+					// If there is a conflict, let's see who get replaced
 					if (spentBy.TryGetValue(spent, out var conflictHash) &&
 						_TxById.TryGetValue(conflictHash, out var conflicted))
 					{
+						// Conflict with one-self... not a conflict.
 						if (conflicted == annotatedTransaction)
 							goto nextTransaction;
+						// We know the conflict is already removed, so this transaction replace it
 						if (toRemove.Contains(conflictHash))
 						{
 							spentBy.Remove(spent);
 							spentBy.Add(spent, annotatedTransaction.Record.TransactionHash);
 						}
-						else if (ShouldReplace(annotatedTransaction, conflicted))
-						{
-							toRemove.Add(conflictHash);
-							spentBy.Remove(spent);
-							spentBy.Add(spent, annotatedTransaction.Record.TransactionHash);
-
-							if (conflicted.Height is null && annotatedTransaction.Height is null)
-							{
-								ReplacedTransactions.Add(conflicted);
-							}
-							else
-							{
-								CleanupTransactions.Add(conflicted);
-							}
-						}
 						else
 						{
-							toRemove.Add(annotatedTransaction.Record.TransactionHash);
-							if (conflicted.Height is null && annotatedTransaction.Height is null)
+							AnnotatedTransaction toKeep = null, toReplace = null;
+							var shouldReplace = ShouldReplace(annotatedTransaction, conflicted);
+							if (shouldReplace)
 							{
-								ReplacedTransactions.Add(annotatedTransaction);
+								toReplace = conflicted;
+								toKeep = annotatedTransaction;
 							}
 							else
 							{
-								CleanupTransactions.Add(annotatedTransaction);
+								toReplace = annotatedTransaction;
+								toKeep = conflicted;
+							}
+							toRemove.Add(toReplace.Record.TransactionHash);
+
+							if (toKeep == annotatedTransaction)
+							{
+								spentBy.Remove(spent);
+								spentBy.Add(spent, annotatedTransaction.Record.TransactionHash);
+							}
+
+							if (toKeep.Height is null && toReplace.Height is null)
+							{
+								toReplace.ReplacedBy = toKeep.Record.TransactionHash;
+								toReplace.Replaceable = false;
+								toKeep.Replacing = toReplace.Record.TransactionHash;
+								replaced.TryAdd(toReplace.Record.TransactionHash, toReplace);
+							}
+							else
+							{
+								CleanupTransactions.Add(toReplace);
 							}
 						}
 					}
 					else
 					{
+						spentBy.Remove(spent);
 						spentBy.Add(spent, annotatedTransaction.Record.TransactionHash);
 					}
 				}
@@ -148,11 +175,15 @@ namespace NBXplorer
 			}
 
 			foreach (var e in toRemove)
+			{
 				_TxById.Remove(e);
+				unconfs.Remove(e);
+			}
 			if (toRemove.Count != 0)
 				goto removeConflicts;
 
 			var sortedTransactions = _TxById.Values.TopologicalSort();
+			ReplacedTransactions = replaced.Values.TopologicalSort().ToList();
 			UTXOState state = new UTXOState();
 			foreach (var tx in sortedTransactions.Where(s => s.IsMature && s.Height is int))
 			{
@@ -174,7 +205,25 @@ namespace NBXplorer
 				if (tx.Height is int)
 					ConfirmedTransactions.Add(tx);
 				else
+				{
 					UnconfirmedTransactions.Add(tx);
+					// A transaction is replaceable if it is RBF and we control all inputs
+					tx.Replaceable = tx.Record.Transaction?.RBF is true &&
+									tx.Record.Transaction?.Inputs.Count() is int txInputCount &&
+									tx.Record.SpentOutpoints.Count == txInputCount;
+					if (tx.Replaceable)
+					{
+						// Parents of a transaction should not be replaceable (technically can in the protocol)
+						// but we don't want user cancelling a chain of transaction
+						foreach (var parentOutpoint in tx.Record.SpentOutpoints)
+						{
+							if (_TxById.TryGetValue(parentOutpoint.Hash, out var parent) && parent.Height is null)
+							{
+								parent.Replaceable = false;
+							}
+						}
+					}
+				}
 				this.Add(tx);
 			}
 			UnconfirmedState = state;

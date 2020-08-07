@@ -1,4 +1,4 @@
-﻿using NBitcoin;
+using NBitcoin;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -20,10 +20,16 @@ namespace NBXplorer.Models
 		/// The timelock of the transaction, activate RBF if not null (Optional: null, nLockTime to 0)
 		/// </summary>
 		public LockTime? LockTime { get; set; }
+
+		/// <summary>
+		/// Discourage fee sniping (Default: true)
+		/// </summary>
+		public bool? DiscourageFeeSniping { get; set; }
+
 		/// <summary>
 		/// Whether this transaction should use RBF or not.
 		/// </summary>
-		public bool RBF { get; set; }
+		public bool? RBF { get; set; }
 		/// <summary>
 		/// The destinations where to send the money
 		/// </summary>
@@ -67,6 +73,16 @@ namespace NBXplorer.Models
 		/// </summary>
 
 		public Money MinValue { get; set; }
+
+		/// <summary>
+		/// Disabling the randomization of unspecified parameters to match the network's fingerprint distribution
+		/// </summary>
+		public bool? DisableFingerprintRandomization { get; set; }
+		
+		/// <summary>
+		/// Attempt setting non_witness_utxo for all inputs even if they are segwit.
+		/// </summary>
+		public bool AlwaysIncludeNonWitnessUTXO { get; set; }
 	}
 	public class PSBTRebaseKeyRules
 	{

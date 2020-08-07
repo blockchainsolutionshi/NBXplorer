@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DBriize;
 using NBitcoin;
 using NBitcoin.Altcoins.Elements;
 using NBXplorer.Altcoins.Liquid;
 using NBitcoin.RPC;
 using NBXplorer.Models;
 using System;
+using NBXplorer.DerivationStrategy;
 
 namespace NBXplorer
 {
@@ -15,7 +15,7 @@ namespace NBXplorer
 	{
 		private readonly RPCClient _rpcClient;
 
-		internal LiquidRepository(DBriizeEngine engine, NBXplorerNetwork network, KeyPathTemplates keyPathTemplates,
+		internal LiquidRepository(DBTrie.DBTrieEngine engine, NBXplorerNetwork network, KeyPathTemplates keyPathTemplates,
 			RPCClient rpcClient) : base(engine, network, keyPathTemplates, rpcClient)
 		{
 			_rpcClient = rpcClient;
@@ -185,6 +185,7 @@ namespace NBXplorer
 		{
 			await base.AfterMatch(tx, keyInfos);
 			if (tx.TrackedSource is DerivationSchemeTrackedSource ts &&
+			    !ts.DerivationStrategy.Unblinded() && 
 				tx.Transaction is ElementsTransaction elementsTransaction &&
 				tx is ElementsTrackedTransaction elementsTracked)
 			{

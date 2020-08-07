@@ -3,7 +3,6 @@ using NBXplorer.ModelBinders;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using NBitcoin;
-using NBitcoin.DataEncoders;
 using NBitcoin.RPC;
 using System;
 using System.Collections.Generic;
@@ -17,15 +16,12 @@ using NBXplorer.DerivationStrategy;
 using NBXplorer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Newtonsoft.Json.Linq;
-using NBXplorer.Events;
 using NBXplorer.Configuration;
 using System.Net.WebSockets;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Reflection;
-using System.Diagnostics;
-using NBitcoin.Altcoins.Elements;
+using NBXplorer.Analytics;
 
 namespace NBXplorer.Controllers
 {
@@ -40,11 +36,12 @@ namespace NBXplorer.Controllers
 			ChainProvider chainProvider,
 			EventAggregator eventAggregator,
 			BitcoinDWaiters waiters,
-			AddressPoolServiceAccessor addressPoolService,
+			AddressPoolService addressPoolService,
 			ScanUTXOSetServiceAccessor scanUTXOSetService,
 			RebroadcasterHostedService rebroadcaster,
 			KeyPathTemplates keyPathTemplates,
-			MvcNewtonsoftJsonOptions jsonOptions
+			MvcNewtonsoftJsonOptions jsonOptions,
+			Analytics.FingerprintHostedService fingerprintService
 			)
 		{
 			ExplorerConfiguration = explorerConfiguration;
@@ -56,10 +53,12 @@ namespace NBXplorer.Controllers
 			Waiters = waiters;
 			Rebroadcaster = rebroadcaster;
 			this.keyPathTemplates = keyPathTemplates;
-			AddressPoolService = addressPoolService.Instance;
+			this.fingerprintService = fingerprintService;
+			AddressPoolService = addressPoolService;
 		}
 		EventAggregator _EventAggregator;
 		private readonly KeyPathTemplates keyPathTemplates;
+		private readonly FingerprintHostedService fingerprintService;
 
 		public BitcoinDWaiters Waiters
 		{
@@ -82,6 +81,38 @@ namespace NBXplorer.Controllers
 		}
 		public ScanUTXOSetService ScanUTXOSetService { get; }
 
+		[HttpPost]
+		[Route("cryptos/{cryptoCode}/rpc")]
+		[Consumes("application/json", "application/json-rpc")]
+		public async Task<IActionResult> RPCProxy(string cryptoCode)
+		{
+			if (!ExplorerConfiguration.ExposeRPC)
+			{
+				throw new NBXplorerError(401, "json-rpc-not-exposed", $"JSON-RPC is not configured to be exposed.").AsException();
+			}
+			var network = GetNetwork(cryptoCode, true);
+			var waiter = Waiters.GetWaiter(network);
+			var jsonRPC = string.Empty;
+			using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+			{
+				jsonRPC = await reader.ReadToEndAsync();
+			}
+
+			if (string.IsNullOrEmpty(jsonRPC))
+			{
+				throw new NBXplorerError(422, "no-json-rpc-request", $"A JSON-RPC request was not provided in the body.").AsException();
+			}
+			if (jsonRPC.StartsWith("["))
+			{
+				var batchRPC = waiter.RPC.PrepareBatch();
+				var results = network.Serializer.ToObject<RPCRequest[]>(jsonRPC).Select(rpcRequest => batchRPC.SendCommandAsync(rpcRequest, false)).ToList();
+				await batchRPC.SendBatchAsync();
+				return Json(results.Select(task => task.Result));
+			}
+
+			return Json(await waiter.RPC.SendCommandAsync(network.Serializer.ToObject<RPCRequest>(jsonRPC), false));
+		}
+		
 		[HttpGet]
 		[Route("cryptos/{cryptoCode}/fees/{blockCount}")]
 		public async Task<GetFeeRateResult> GetFeeRate(int blockCount, string cryptoCode)
@@ -196,6 +227,7 @@ namespace NBXplorer.Controllers
 					rpc.RequestTimeout = TimeSpan.FromMinutes(1.0);
 					blockchainInfo = await rpc.GetBlockchainInfoAsyncEx();
 				}
+				catch (HttpRequestException ex) when (ex.InnerException is IOException) { } // Sometimes "The response ended prematurely."
 				catch (IOException) { } // Sometimes "The response ended prematurely."
 				catch (OperationCanceledException) // Timeout, can happen if core is really busy
 				{
@@ -209,7 +241,8 @@ namespace NBXplorer.Controllers
 				CryptoCode = network.CryptoCode,
 				Version = typeof(MainController).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version,
 				SupportedCryptoCodes = Waiters.All().Select(w => w.Network.CryptoCode).ToArray(),
-				IsFullySynched = true
+				IsFullySynched = true,
+				InstanceName = ExplorerConfiguration.InstanceName
 			};
 
 			GetNetworkInfoResponse networkInfo = waiter.NetworkInfo;
@@ -226,7 +259,8 @@ namespace NBXplorer.Controllers
 					Capabilities = new NodeCapabilities()
 					{
 						CanScanTxoutSet = waiter.RPC.Capabilities.SupportScanUTXOSet,
-						CanSupportSegwit = waiter.RPC.Capabilities.SupportSegwit
+						CanSupportSegwit = waiter.RPC.Capabilities.SupportSegwit,
+						CanSupportTransactionCheck = waiter.RPC.Capabilities.SupportTestMempoolAccept
 					},
 					ExternalAddresses = (networkInfo.localaddresses ?? Array.Empty<GetNetworkInfoResponse.LocalAddress>())
 										.Select(l => $"{l.address}:{l.port}").ToArray()
@@ -395,7 +429,7 @@ namespace NBXplorer.Controllers
 		[Route("cryptos/{cryptoCode}/events")]
 		public async Task<JArray> GetEvents(string cryptoCode, int lastEventId = 0, int? limit = null, bool longPolling = false, CancellationToken cancellationToken = default)
 		{
-			if (limit != null && limit.Value < 0)
+			if (limit != null && limit.Value < 1)
 				throw new NBXplorerError(400, "invalid-limit", "limit should be more than 0").AsException();
 			var network = GetNetwork(cryptoCode, false);
 			TaskCompletionSource<bool> waitNextEvent = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -425,6 +459,18 @@ namespace NBXplorer.Controllers
 				}
 				return new JArray(result.Select(o => o.ToJObject(repo.Serializer.Settings)));
 			}
+		}
+
+
+		[Route("cryptos/{cryptoCode}/events/latest")]
+		public async Task<JArray> GetLatestEvents(string cryptoCode, int limit = 10)
+		{
+			if (limit < 1)
+				throw new NBXplorerError(400, "invalid-limit", "limit should be more than 0").AsException();
+			var network = GetNetwork(cryptoCode, false);
+			var repo = RepositoryProvider.GetRepository(network);
+			var result = await repo.GetLatestEvents(limit);
+			return new JArray(result.Select(o => o.ToJObject(repo.Serializer.Settings)));
 		}
 
 
@@ -582,7 +628,10 @@ namespace NBXplorer.Controllers
 						Confirmations = tx.Height.HasValue ? currentHeight - tx.Height.Value + 1 : 0,
 						Timestamp = tx.Record.FirstSeen,
 						Inputs = tx.Record.SpentOutpoints.Select(o => txs.GetUTXO(o)).Where(o => o != null).ToList(),
-						Outputs = tx.Record.GetReceivedOutputs().ToList()
+						Outputs = tx.Record.GetReceivedOutputs().ToList(),
+						Replaceable = tx.Replaceable,
+						ReplacedBy = tx.ReplacedBy,
+						Replacing = tx.Replacing
 					};
 
 					if (txId == null || txId == txInfo.TransactionId)
@@ -924,10 +973,11 @@ namespace NBXplorer.Controllers
 			var buffer = new MemoryStream();
 			await Request.Body.CopyToAsync(buffer);
 			buffer.Position = 0;
-			var stream = new BitcoinStream(buffer, false);
-			tx.ReadWrite(stream);
+			tx.FromBytes(buffer.ToArrayEfficient());
 
 			var waiter = this.Waiters.GetWaiter(network);
+			if (testMempoolAccept && !waiter.RPC.Capabilities.SupportTestMempoolAccept)
+				throw new NBXplorerException(new NBXplorerError(400, "not-supported", "This feature is not supported for this crypto currency"));
 			var repo = RepositoryProvider.GetRepository(network);
 			var chain = ChainProvider.GetChain(network);
 			RPCException rpcEx = null;
@@ -938,12 +988,16 @@ namespace NBXplorer.Controllers
 					var mempoolAccept = await waiter.RPC.TestMempoolAcceptAsync(tx);
 					if (mempoolAccept.IsAllowed)
 						return new BroadcastResult(true);
+					var rpcCode = GetRPCCodeFromReason(mempoolAccept.RejectReason);
 					return new BroadcastResult(false)
 					{
-						RPCCodeMessage = $"{mempoolAccept.RejectReason} ({mempoolAccept.RejectCode})"
+						RPCCode = rpcCode,
+						RPCMessage = rpcCode == RPCErrorCode.RPC_TRANSACTION_REJECTED ? "Transaction was rejected by network rules" : null,
+						RPCCodeMessage = mempoolAccept.RejectReason,
 					};
 				}
 				await waiter.RPC.SendRawTransactionAsync(tx);
+				await waiter.GetExplorerBehavior()?.SaveMatches(tx, false);
 				return new BroadcastResult(true);
 			}
 			catch (RPCException ex) when (!testMempoolAccept)
@@ -970,6 +1024,7 @@ namespace NBXplorer.Controllers
 					{
 						await waiter.RPC.SendRawTransactionAsync(tx);
 						Logs.Explorer.LogInformation($"{network.CryptoCode}: Broadcast success");
+						await waiter.GetExplorerBehavior()?.SaveMatches(tx, false);
 						return new BroadcastResult(true);
 					}
 					catch (RPCException)
@@ -984,6 +1039,18 @@ namespace NBXplorer.Controllers
 					RPCMessage = rpcEx.Message
 				};
 			}
+		}
+
+		private RPCErrorCode? GetRPCCodeFromReason(string rejectReason)
+		{
+			return rejectReason switch
+			{
+				"Transaction already in block chain" => RPCErrorCode.RPC_VERIFY_ALREADY_IN_CHAIN,
+				"Transaction rejected by AcceptToMemoryPool" => RPCErrorCode. RPC_TRANSACTION_REJECTED,
+				"AcceptToMemoryPool failed" => RPCErrorCode. RPC_TRANSACTION_REJECTED,
+				"insufficient fee" => RPCErrorCode. RPC_TRANSACTION_REJECTED,
+				_ => RPCErrorCode. RPC_TRANSACTION_ERROR
+			};
 		}
 
 		[HttpPost]
@@ -1103,6 +1170,8 @@ namespace NBXplorer.Controllers
 			}
 
 			// Step2. However, we need to remove those who are spending a UTXO from a transaction that is not pruned
+			retry:
+			bool removedPrunables = false;
 			if (prunableIds.Count != 0)
 			{
 				foreach (var tx in transactions.ConfirmedTransactions)
@@ -1117,9 +1186,13 @@ namespace NBXplorer.Controllers
 													.Where(parent => !prunableIds.Contains(parent.Record.TransactionHash)))
 					{
 						prunableIds.Remove(tx.Record.TransactionHash);
+						removedPrunables = true;
 					}
 				}
 			}
+			// If we removed some prunable, it may have made other transactions unprunable.
+			if (removedPrunables)
+				goto retry;
 
 			if (prunableIds.Count != 0)
 			{

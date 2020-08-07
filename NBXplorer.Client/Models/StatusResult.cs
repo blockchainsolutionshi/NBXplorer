@@ -42,6 +42,7 @@ namespace NBXplorer.Models
 	{
 		public bool CanScanTxoutSet { get; set; }
 		public bool CanSupportSegwit { get; set; }
+		public bool CanSupportTransactionCheck { get; set; }
 	}
 	public class StatusResult
     {
@@ -64,6 +65,11 @@ namespace NBXplorer.Models
 			set;
 		}
 		public int? SyncHeight
+		{
+			get;
+			set;
+		}
+		public string InstanceName
 		{
 			get;
 			set;
