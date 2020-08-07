@@ -17,18 +17,25 @@
   <PropertyGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
     <DefineConstants>$(DefineConstants);NETCOREAPP21</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup Condition=" '$(RunConfiguration)' == 'Custom' ">
+    <StartAction>Project</StartAction>
+    <ExternalConsole>true</ExternalConsole>
+    <ApplicationURL>http://localhost:65497</ApplicationURL>
+  </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' != 'netcoreapp2.1'">
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.6" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
-	  <PackageReference Include="Microsoft.AspNetCore.App" Version="2.1.9" />
+	  <PackageReference Include="Microsoft.AspNetCore.App" Version="2.1.9"><PrivateAssets Condition="'%(PackageReference.Version)' == ''">all</PrivateAssets>
+<Publish Condition="'%(PackageReference.Version)' == ''">true</Publish>
+</PackageReference>
     <Compile Remove="HealthChecks\**"></Compile>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DBTrie" Version="1.0.35" />
+    <PackageReference Include="DBTrie" Version="1.0.38" />
     <PackageReference Include="Microsoft.Azure.ServiceBus" Version="4.1.3" />
-    <PackageReference Include="RabbitMQ.Client" Version="5.1.2" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.1.0" />
 	  <PackageReference Include="NicolasDorier.CommandLine" Version="1.0.0.2" />
 	  <PackageReference Include="NicolasDorier.CommandLine.Configuration" Version="1.0.0.3" />
     <ProjectReference Include="..\NBXplorer.Client\NBXplorer.Client.csproj" />
@@ -45,5 +52,8 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Altcoins\Makana\" />
   </ItemGroup>
 </Project>

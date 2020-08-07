@@ -18,7 +18,7 @@ namespace NBXplorer.Configuration
 	{
 		protected override CommandLineApplication CreateCommandLineApplicationCore()
 		{
-			var provider = new NBXplorerNetworkProvider(NetworkType.Mainnet);
+			var provider = new NBXplorerNetworkProvider(NetworkType.Regtest);
 			var chains = string.Join(",", provider.GetAll().Select(n => n.CryptoCode.ToLowerInvariant()).ToArray());
 			CommandLineApplication app = new CommandLineApplication(true)
 			{

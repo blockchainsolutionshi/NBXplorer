@@ -89,7 +89,7 @@ namespace NBXplorer
 					var settings = GetChainSetting(net);
 					if (settings != null)
 					{
-						var repo = net.NBitcoinNetwork.NetworkSet == Liquid.Instance ? new LiquidRepository(_Engine, net, keyPathTemplates, settings.RPC) : new Repository(_Engine, net, keyPathTemplates, settings.RPC);
+						var repo = net.NBitcoinNetwork.NetworkSet == Makana.Instance ? new MakanaRepository(_Engine, net, keyPathTemplates, settings.RPC) : new Repository(_Engine, net, keyPathTemplates, settings.RPC);
 						repo.MaxPoolSize = _Configuration.MaxGapSize;
 						repo.MinPoolSize = _Configuration.MinGapSize;
 						repo.MinUtxoValue = settings.MinUtxoValue;

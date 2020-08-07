@@ -141,7 +141,7 @@ namespace NBXplorer.Configuration
 
 					chainConfiguration.StartHeight = config.GetOrDefault<int>($"{network.CryptoCode}.startheight", -1);
 
-					if (!(network is NBXplorer.NBXplorerNetworkProvider.LiquidNBXplorerNetwork))
+					if (!(network is NBXplorer.NBXplorerNetworkProvider.MakanaNBXplorerNetwork))
 					{
 						if (config.GetOrDefault<int>($"{network.CryptoCode}.minutxovalue", -1) is int v && v != -1)
 						{

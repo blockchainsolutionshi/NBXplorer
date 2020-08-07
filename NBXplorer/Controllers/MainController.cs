@@ -22,6 +22,8 @@ using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Reflection;
 using NBXplorer.Analytics;
+using NBitcoin.Altcoins;
+using System.Collections.ObjectModel;
 
 namespace NBXplorer.Controllers
 {
@@ -639,7 +641,7 @@ namespace NBXplorer.Controllers
 					if (txId != null && txId == txInfo.TransactionId)
 						fetchedTransactionInfo = txInfo;
 
-					if (network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Liquid.Instance)
+					if (network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Makana.Instance || network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Liquid.Instance)
 					{
 						txInfo.BalanceChange = new MoneyBag(txInfo.Outputs.Select(o => o.Value).OfType<AssetMoney>().ToArray())
 												- new MoneyBag(txInfo.Inputs.Select(o => o.Value).OfType<AssetMoney>().ToArray());
@@ -853,7 +855,7 @@ namespace NBXplorer.Controllers
 
 		private IMoney CalculateBalance(NBXplorerNetwork network, TransactionInformationSet transactions)
 		{
-			if (network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Liquid.Instance)
+			if (network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Makana.Instance || network.NBitcoinNetwork.NetworkSet == NBitcoin.Altcoins.Liquid.Instance)
 			{
 				return new MoneyBag(transactions.Transactions.Select(t => t.BalanceChange).ToArray());
 			}
@@ -1093,9 +1095,16 @@ namespace NBXplorer.Controllers
 			var masterKey = mnemonic.DeriveExtKey(request.Passphrase).GetWif(network.NBitcoinNetwork);
 			var keyPath = GetDerivationKeyPath(request.ScriptPubKeyType.Value, request.AccountNumber, network);
 			var accountKey = masterKey.Derive(keyPath);
+
+			// ADDING UNBLINDED OPTIONS
+			Dictionary<string, bool> additionalOptions = new Dictionary<string, bool>();
+			additionalOptions.Add("unblinded", true);
+
+
 			DerivationStrategyBase derivation = network.DerivationStrategyFactory.CreateDirectDerivationStrategy(accountKey.Neuter(), new DerivationStrategyOptions()
 			{
-				ScriptPubKeyType = request.ScriptPubKeyType.Value
+				ScriptPubKeyType = request.ScriptPubKeyType.Value,
+				AdditionalOptions = new ReadOnlyDictionary<string, bool>(additionalOptions),
 			});
 
 			var derivationTrackedSource = new DerivationSchemeTrackedSource(derivation);

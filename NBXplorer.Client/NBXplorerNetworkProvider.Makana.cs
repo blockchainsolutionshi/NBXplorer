@@ -1,18 +1,15 @@
-﻿using NBitcoin;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System;
+using NBitcoin;
 using NBitcoin.Altcoins.Elements;
 using NBXplorer.DerivationStrategy;
-using NBXplorer.Models;
 
 namespace NBXplorer
 {
 	public partial class NBXplorerNetworkProvider
 	{
-		public class LiquidNBXplorerNetwork : NBXplorerNetwork
+		public class MakanaNBXplorerNetwork : NBXplorerNetwork
 		{
-			internal LiquidNBXplorerNetwork(INetworkSet networkSet, NetworkType networkType) : base(networkSet, networkType)
+			internal MakanaNBXplorerNetwork(INetworkSet networkSet, NetworkType networkType) : base(networkSet, networkType)
 			{
 			}
 
@@ -44,26 +41,26 @@ namespace NBXplorer
 				return blindingKey;
 			}
 		}
-		private void InitLiquid(NetworkType networkType)
+		private void InitMakana(NetworkType networkType)
 		{
-			Add(new LiquidNBXplorerNetwork(NBitcoin.Altcoins.Liquid.Instance, networkType)
+			Add(new MakanaNBXplorerNetwork(NBitcoin.Altcoins.Makana.Instance, networkType)
 			{
 				MinRPCVersion = 150000,
 				CoinType = networkType == NetworkType.Mainnet ? new KeyPath("1776'") : new KeyPath("1'"),
 			});
 		}
 
-		public NBXplorerNetwork GetLBTC()
+		public NBXplorerNetwork GetMKNA()
 		{
-			return GetFromCryptoCode(NBitcoin.Altcoins.Liquid.Instance.CryptoCode);
+			return GetFromCryptoCode(NBitcoin.Altcoins.Makana.Instance.CryptoCode);
 		}
 	}
-	
-	//public static class LiquidDerivationStrategyOptionsExtensions
-	//{
-	//	public static bool Unblinded(this DerivationStrategyBase derivationStrategyBase)
-	//	{
-	//		return derivationStrategyBase.AdditionalOptions.TryGetValue("unblinded", out var unblinded) is true && unblinded;
-	//	}
-	//}
+
+	public static class MakanaDerivationStrategyOptionsExtensions
+	{
+		public static bool Unblinded(this DerivationStrategyBase derivationStrategyBase)
+		{
+			return derivationStrategyBase.AdditionalOptions.TryGetValue("unblinded", out var unblinded) is true && unblinded;
+		}
+	}
 }

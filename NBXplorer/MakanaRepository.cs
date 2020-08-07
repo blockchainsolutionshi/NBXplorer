@@ -1,21 +1,19 @@
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NBitcoin;
 using NBitcoin.Altcoins.Elements;
-using NBXplorer.Altcoins.Liquid;
 using NBitcoin.RPC;
 using NBXplorer.Models;
-using System;
-using NBXplorer.DerivationStrategy;
 
 namespace NBXplorer
 {
-	public class LiquidRepository : Repository
+	public class MakanaRepository : Repository
 	{
 		private readonly RPCClient _rpcClient;
 
-		internal LiquidRepository(DBTrie.DBTrieEngine engine, NBXplorerNetwork network, KeyPathTemplates keyPathTemplates,
+		internal MakanaRepository(DBTrie.DBTrieEngine engine, NBXplorerNetwork network, KeyPathTemplates keyPathTemplates,
 			RPCClient rpcClient) : base(engine, network, keyPathTemplates, rpcClient)
 		{
 			_rpcClient = rpcClient;
@@ -26,13 +24,13 @@ namespace NBXplorer
 			public ElementsTrackedTransaction(TrackedTransactionKey key, TrackedSource trackedSource, IEnumerable<Coin> receivedCoins, Dictionary<Script, KeyPath> knownScriptMapping) :
 				base(key, trackedSource, receivedCoins, knownScriptMapping)
 			{
-				ClearCoinValues();
+				//ClearCoinValues();
 				Unblind(receivedCoins, false);
 			}
 			public ElementsTrackedTransaction(TrackedTransactionKey key, TrackedSource trackedSource, Transaction transaction, Dictionary<Script, KeyPath> knownScriptMapping) :
 				base(key, trackedSource, transaction, knownScriptMapping)
 			{
-				ClearCoinValues();
+				//ClearCoinValues();
 				Unblind(transaction.Outputs.AsCoins(), false);
 			}
 
@@ -59,7 +57,7 @@ namespace NBXplorer
 				foreach (var coin in unblindedCoins)
 				{
 					AssetMoney assetMoney = null;
-					if (coin is Altcoins.Liquid.AssetCoin assetCoin)
+					if (coin is Altcoins.Makana.AssetCoin assetCoin)
 					{
 						assetMoney = assetCoin.Money;
 					}
@@ -75,7 +73,7 @@ namespace NBXplorer
 						if (saveUnblindData)
 							Unblinded.TryAdd((int)existingCoin.Outpoint.N, assetMoney);
 						this.ReceivedCoins.Remove(existingCoin);
-						this.ReceivedCoins.Add(new Altcoins.Liquid.AssetCoin(assetMoney, existingCoin));
+						this.ReceivedCoins.Add(new Altcoins.Makana.AssetCoin(assetMoney, existingCoin));
 					}
 				}
 			}
@@ -92,7 +90,7 @@ namespace NBXplorer
 					{
 						this.ReceivedCoins.Remove(existingCoin);
 						var money = new AssetMoney(unblind.AssetId, unblind.Value);
-						this.ReceivedCoins.Add(new Altcoins.Liquid.AssetCoin(money, existingCoin));
+						this.ReceivedCoins.Add(new Altcoins.Makana.AssetCoin(money, existingCoin));
 						this.Unblinded.Add(unblind.Index, money);
 					}
 				}
@@ -185,14 +183,14 @@ namespace NBXplorer
 		{
 			await base.AfterMatch(tx, keyInfos);
 			if (tx.TrackedSource is DerivationSchemeTrackedSource ts &&
-			    !ts.DerivationStrategy.Unblinded() && 
+				!ts.DerivationStrategy.Unblinded() &&
 				tx.Transaction is ElementsTransaction elementsTransaction &&
 				tx is ElementsTrackedTransaction elementsTracked)
 			{
 				var keys = keyInfos
 					.Select(kv => (KeyPath: kv.KeyPath,
 								   Address: kv.Address as BitcoinBlindedAddress,
-								   BlindingKey: NBXplorerNetworkProvider.LiquidNBXplorerNetwork.GenerateBlindingKey(ts.DerivationStrategy, kv.KeyPath)))
+								   BlindingKey: NBXplorerNetworkProvider.MakanaNBXplorerNetwork.GenerateBlindingKey(ts.DerivationStrategy, kv.KeyPath)))
 					.Where(o => o.Address != null)
 					.Select(o => new UnblindTransactionBlindingAddressKey()
 					{

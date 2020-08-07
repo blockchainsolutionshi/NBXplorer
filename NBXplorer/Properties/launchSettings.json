@@ -1,57 +1,21 @@
 {
   "profiles": {
-    "NBXplorer - BTC on Mainnet": {
+    "Custom": {
       "commandName": "Project",
-      "commandLineArgs": "",
       "launchBrowser": true,
+      "applicationUrl": "http://localhost:65497",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "http://localhost:4774",
-      "launchUrl": "v1/cryptos/btc/status"
+      }
     },
-
-    "NBXplorer - BTC+LTC on Regtest": {
+    "NBXplorer": {
       "commandName": "Project",
-      "commandLineArgs": "--chains=btc,ltc --network=regtest",
+      "commandLineArgs": "--chains mkna --regtest --mknarpcuser user1 --mknarpcpassword password1 --bind \"0.0.0.0\" --port 5010 --noauth\n",
       "launchBrowser": true,
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "NBXPLORER_EXPOSERPC": "true"
-      },
-      "applicationUrl": "http://localhost:4774",
-      "launchUrl": "v1/cryptos/ltc/status"
-    },
-    "NBXplorer - BTC & LBTC on Regtest from Docker": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "NBXPLORER_NETWORK": "regtest",
-        "NBXPLORER_CHAINS":"btc,lbtc",
-        "NBXPLORER_LBTCRPCURL": "http://127.0.0.1:19332/",
-        "NBXPLORER_LBTCNODEENDPOINT": "127.0.0.1:19444",
-        "NBXPLORER_LBTCRPCUSER": "liquid",
-        "NBXPLORER_LBTCRPCPASSWORD": "liquid",
-        "NBXPLORER_BTCRPCURL": "http://127.0.0.1:43782/",
-        "NBXPLORER_BTCNODEENDPOINT": "127.0.0.1:39388",
-        "NBXPLORER_BTCRPCUSER": "liquid",
-        "NBXPLORER_BTCRPCPASSWORD": "liquid",
-        "NBXPLORER_NOAUTH": "true",
-        "NBXPLORER_EXPOSERPC": "true"
-      },
-      "applicationUrl": "http://localhost:4774",
-      "launchUrl": "v1/cryptos/lbtc/status"
-    },
-    "NBXplorer - DASH on Testnet": {
-      "commandName": "Project",
-      "commandLineArgs": "--chains=dash --network=testnet",
-      "launchBrowser": true,
+      "applicationUrl": "http://localhost:15048",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "http://localhost:4774",
-      "launchUrl": "v1/cryptos/dash/status"
+      }
     }
   }
 }

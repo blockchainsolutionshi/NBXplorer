@@ -551,7 +551,14 @@ namespace NBXplorer
 			return GenerateWalletAsync(request, cancellationToken).GetAwaiter().GetResult();
 		}
 
+		//ADD FIDDLER MAN IN THE MIDDLE
+		//public static HttpClientHandler handler = new HttpClientHandler()
+		//{
+		//	Proxy = new WebProxy("192.168.1.30:8888")
+		//};
+		//private static readonly HttpClient SharedClient = new HttpClient(handler);
 		private static readonly HttpClient SharedClient = new HttpClient();
+
 		internal HttpClient Client = SharedClient;
 
 		public void SetClient(HttpClient client)
